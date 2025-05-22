@@ -229,11 +229,46 @@
       border-left: 4px solid var(--primary-color);
       font-size: var(--font-size-sm);
       transition: all 0.2s ease-in-out;
+      position: relative;
     }
 
     #transaction-list li:hover {
       background-color: #f1f5f9;
       transform: translateX(4px);
+    }
+
+    /* Delete button styles */
+    .delete-transaction {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 20px;
+      height: 20px;
+      border: none;
+      background-color: var(--danger-color);
+      color: white;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease-in-out;
+      opacity: 0.7;
+      min-width: auto;
+      padding: 0;
+    }
+
+    .delete-transaction:hover {
+      opacity: 1;
+      background-color: #dc2626;
+      transform: scale(1.1);
+    }
+
+    .delete-transaction:focus {
+      outline: 2px solid var(--danger-color);
+      outline-offset: 2px;
     }
 
     #transaction-list:empty::after {
@@ -555,10 +590,28 @@
       
       const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
       
-      sortedTransactions.forEach(t => {
+      sortedTransactions.forEach((t, sortedIndex) => {
+        // Find the original index in the unsorted array
+        const originalIndex = transactions.findIndex((original, index) => 
+          original.date === t.date && 
+          original.amount === t.amount && 
+          original.package === t.package &&
+          // Handle potential duplicates by tracking remaining matches
+          transactions.slice(0, index + 1).filter(item => 
+            item.date === t.date && 
+            item.amount === t.amount && 
+            item.package === t.package
+          ).length === sortedTransactions.slice(0, sortedIndex + 1).filter(item =>
+            item.date === t.date && 
+            item.amount === t.amount && 
+            item.package === t.package
+          ).length
+        );
+        
         const item = document.createElement('li');
         item.className = `fade-in ${getPackageClass(t.package)}`;
         item.innerHTML = `
+          <button class="delete-transaction" onclick="deleteTransaction(${originalIndex})" title="Delete transaction">×</button>
           <strong>${formatDate(t.date)}</strong><br>
           ${formatCurrency(t.amount)} - ${t.package}
         `;
@@ -567,37 +620,45 @@
     }
 
     function renderCurrentLimits() {
-      const selectedPackage = document.getElementById('package').value;
-      const today = new Date();
-      const monthlyUsage = calculateRolling30DayUsage(today, selectedPackage);
-      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
-      
-      const todayString = today.toISOString().split('T')[0];
-      const dailyUsage = calculateDailyUsage(todayString, selectedPackage);
-      const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
-      
-      const availableToday = Math.min(dailyRemaining, monthlyRemaining);
-      
-      const past30Days = new Date(today);
-      past30Days.setDate(today.getDate() - 30);
-      
-      document.getElementById('limits').innerHTML = `
-        <div class="info-display fade-in">
-          <p><strong>${selectedPackage} Package Status</strong></p>
-          <p>Rolling 30-day period: ${formatDate(past30Days.toISOString().split('T')[0])} to ${formatDate(todayString)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p>Monthly Limit: ${formatCurrency(limits[selectedPackage].monthly)}</p>
-          <p>Monthly Used: ${formatCurrency(monthlyUsage)}</p>
-          <p>Monthly Remaining: ${formatCurrency(monthlyRemaining)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p>Daily Limit: ${formatCurrency(limits[selectedPackage].daily)}</p>
-          <p>Today's Usage: ${formatCurrency(dailyUsage)}</p>
-          <p>Daily Remaining: ${formatCurrency(dailyRemaining)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p><strong>Available Today: ${formatCurrency(availableToday)}</strong></p>
-        </div>
-      `;
-    }
+  const selectedPackage = document.getElementById('package').value;
+  
+  // Get today's date in local timezone (same format as form input)
+  const today = new Date();
+  const todayString = today.getFullYear() + '-' + 
+    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(today.getDate()).padStart(2, '0');
+  
+  const monthlyUsage = calculateRolling30DayUsage(today, selectedPackage);
+  const dailyUsage = calculateDailyUsage(todayString, selectedPackage);
+  
+  const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
+  const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
+  
+  const availableToday = Math.min(dailyRemaining, monthlyRemaining);
+  
+  const past30Days = new Date(today);
+  past30Days.setDate(today.getDate() - 30);
+  const past30DaysString = past30Days.getFullYear() + '-' + 
+    String(past30Days.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(past30Days.getDate()).padStart(2, '0');
+  
+  document.getElementById('limits').innerHTML = `
+    <div class="info-display fade-in">
+      <p><strong>${selectedPackage} Package Status</strong></p>
+      <p>Rolling 30-day period: ${formatDate(past30DaysString)} to ${formatDate(todayString)}</p>
+      <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+      <p>Monthly Limit: ${formatCurrency(limits[selectedPackage].monthly)}</p>
+      <p>Monthly Used: ${formatCurrency(monthlyUsage)}</p>
+      <p>Monthly Remaining: ${formatCurrency(monthlyRemaining)}</p>
+      <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+      <p>Daily Limit: ${formatCurrency(limits[selectedPackage].daily)}</p>
+      <p>Today's Usage: ${formatCurrency(dailyUsage)}</p>
+      <p>Daily Remaining: ${formatCurrency(dailyRemaining)}</p>
+      <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+      <p><strong>Available Today: ${formatCurrency(availableToday)}</strong></p>
+    </div>
+  `;
+}
 
     function renderAll() {
       renderTransactions();
@@ -605,6 +666,27 @@
     }
 
     // Event Listeners
+    window.deleteTransaction = function(index) {
+      if (confirm('Are you sure you want to delete this transaction?')) {
+        const deletedTransaction = transactions[index];
+        transactions.splice(index, 1);
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        renderAll();
+        
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.className = 'alert alert-success fade-in';
+        successDiv.innerHTML = `Transaction deleted: ${formatCurrency(deletedTransaction.amount)} on ${formatDate(deletedTransaction.date)}`;
+        document.querySelector('.container').insertBefore(successDiv, document.querySelector('.grid-layout'));
+        
+        setTimeout(() => {
+          if (successDiv.parentNode) {
+            successDiv.parentNode.removeChild(successDiv);
+          }
+        }, 3000);
+      }
+    };
+
     document.getElementById('date-format').addEventListener('change', function() {
       dateFormat = this.value;
       localStorage.setItem('dateFormat', dateFormat);
@@ -798,4 +880,3 @@
   </script>
 </body>
 </html>
-    
