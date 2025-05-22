@@ -283,6 +283,24 @@
     .package-gold { border-left-color: #ffd700; }
     .package-platinum { border-left-color: #e5e4e2; }
 
+    /* Date Format Settings */
+    .date-format-selector {
+      margin-bottom: var(--spacing-lg);
+      text-align: center;
+    }
+
+    .date-format-selector label {
+      display: inline-block;
+      margin-right: var(--spacing-md);
+      margin-bottom: var(--spacing-sm);
+      font-weight: 500;
+    }
+
+    .date-format-selector select {
+      width: auto;
+      min-width: 200px;
+    }
+
     /* Responsive Design */
     @media (max-width: 768px) {
       .container {
@@ -360,6 +378,17 @@
 <body>
   <div class="container">
     <h1>Rolling 30-Day Transaction Calculator</h1>
+    
+    <!-- Date Format Selector -->
+    <div class="date-format-selector">
+      <label for="date-format">Date Format:</label>
+      <select id="date-format">
+        <option value="us">US Standard (5/1/2025)</option>
+        <option value="short">Short Month (May 1, 2025)</option>
+        <option value="long">Long Month (May 1, 2025)</option>
+        <option value="european">European (01/05/2025)</option>
+      </select>
+    </div>
     
     <div class="grid-layout">
       <!-- Transaction Entry Form -->
@@ -450,6 +479,9 @@
     // Load transactions from localStorage
     let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
 
+    // Load date format preference
+    let dateFormat = localStorage.getItem('dateFormat') || 'us';
+
     // Utility Functions
     function getPackageClass(packageName) {
       return `package-${packageName.toLowerCase()}`;
@@ -463,11 +495,30 @@
     }
 
     function formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+      // Parse date string as local date to avoid timezone issues
+      const [year, month, day] = dateString.split('-');
+      const date = new Date(year, month - 1, day); // month is 0-indexed
+      
+      switch(dateFormat) {
+        case 'us':
+          return date.toLocaleDateString('en-US'); // 5/1/2025
+        case 'short':
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          }); // May 1, 2025
+        case 'long':
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }); // May 1, 2025
+        case 'european':
+          return date.toLocaleDateString('en-GB'); // 01/05/2025
+        default:
+          return date.toLocaleDateString('en-US');
+      }
     }
 
     function getTransactionsInRange(startDate, endDate, packageType = null) {
@@ -554,6 +605,24 @@
     }
 
     // Event Listeners
+    document.getElementById('date-format').addEventListener('change', function() {
+      dateFormat = this.value;
+      localStorage.setItem('dateFormat', dateFormat);
+      renderAll();
+      
+      // Re-render any existing future/daily availability displays
+      const futureDate = document.getElementById('future-date').value;
+      const specificDate = document.getElementById('specific-date').value;
+      
+      if (futureDate) {
+        document.getElementById('check-future').click();
+      }
+      
+      if (specificDate) {
+        document.getElementById('check-daily').click();
+      }
+    });
+
     document.getElementById('transaction-form').addEventListener('submit', function(event) {
       event.preventDefault();
       
@@ -720,6 +789,7 @@
     });
 
     // Initialize the application
+    document.getElementById('date-format').value = dateFormat;
     renderAll();
 
     // Set today's date as default for the transaction form
@@ -728,3 +798,4 @@
   </script>
 </body>
 </html>
+    
