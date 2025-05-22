@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rolling 30-Day Calculator</title>
+  <style>
+    /* CSS Reset and Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      /* Color Palette */
+      --primary-color: #2563eb;
+      --primary-hover: #1d4ed8;
+      --secondary-color: #64748b;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      
+      /* Neutral Colors */
+      --background-color: #f8fafc;
+      --surface-color: #ffffff;
+      --border-color: #e2e8f0;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      
+      /* Shadows */
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      
+      /* Typography */
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      --font-size-xs: 0.75rem;
+      --font-size-sm: 0.875rem;
+      --font-size-base: 1rem;
+      --font-size-lg: 1.125rem;
+      --font-size-xl: 1.25rem;
+      --font-size-2xl: 1.5rem;
+      --font-size-3xl: 1.875rem;
+      
+      /* Spacing */
+      --spacing-xs: 0.25rem;
+      --spacing-sm: 0.5rem;
+      --spacing-md: 1rem;
+      --spacing-lg: 1.5rem;
+      --spacing-xl: 2rem;
+      --spacing-2xl: 3rem;
+      
+      /* Border Radius */
+      --radius-sm: 0.25rem;
+      --radius-md: 0.375rem;
+      --radius-lg: 0.5rem;
+      --radius-xl: 0.75rem;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--background-color);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Typography */
+    h1 {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: var(--spacing-2xl);
+      color: var(--text-primary);
+      letter-spacing: -0.025em;
+    }
+
+    h2 {
+      font-size: var(--font-size-xl);
+      font-weight: 600;
+      margin-bottom: var(--spacing-lg);
+      color: var(--text-primary);
+      text-align: center;
+      letter-spacing: -0.025em;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--spacing-xl);
+    }
+
+    .grid-layout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: var(--spacing-xl);
+      margin-top: var(--spacing-xl);
+    }
+
+    /* Cards */
+    .section-card {
+      background: var(--surface-color);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border-color);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .section-card:hover {
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: var(--spacing-lg);
+    }
+
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: var(--spacing-sm);
+      color: var(--text-primary);
+      font-size: var(--font-size-sm);
+    }
+
+    input[type="date"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: var(--spacing-md);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-base);
+      font-family: inherit;
+      background-color: var(--surface-color);
+      color: var(--text-primary);
+      transition: all 0.2s ease-in-out;
+    }
+
+    input[type="date"]:focus,
+    input[type="number"]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    input[type="date"]:hover,
+    input[type="number"]:hover,
+    select:hover {
+      border-color: var(--secondary-color);
+    }
+
+    /* Button Styles */
+    .button-group {
+      display: flex;
+      gap: var(--spacing-md);
+      flex-wrap: wrap;
+      margin-top: var(--spacing-lg);
+    }
+
+    button {
+      padding: var(--spacing-md) var(--spacing-lg);
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 120px;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-secondary {
+      background-color: var(--surface-color);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--background-color);
+      border-color: var(--secondary-color);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-danger {
+      background-color: var(--danger-color);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background-color: #dc2626;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    /* List Styles */
+    #transaction-list {
+      list-style: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    #transaction-list li {
+      padding: var(--spacing-md);
+      margin-bottom: var(--spacing-sm);
+      background-color: var(--background-color);
+      border-radius: var(--radius-md);
+      border-left: 4px solid var(--primary-color);
+      font-size: var(--font-size-sm);
+      transition: all 0.2s ease-in-out;
+    }
+
+    #transaction-list li:hover {
+      background-color: #f1f5f9;
+      transform: translateX(4px);
+    }
+
+    #transaction-list:empty::after {
+      content: "No transactions recorded yet";
+      display: block;
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: var(--spacing-xl);
+    }
+
+    /* Info Display */
+    .info-display {
+      padding: var(--spacing-lg);
+      background: linear-gradient(135deg, var(--background-color) 0%, #f1f5f9 100%);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+      margin-top: var(--spacing-md);
+    }
+
+    .info-display strong {
+      color: var(--primary-color);
+      font-size: var(--font-size-lg);
+    }
+
+    .info-display p {
+      margin: 0;
+      line-height: 1.8;
+    }
+
+    /* Note Styles */
+    .note {
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: var(--spacing-sm);
+      font-style: italic;
+      padding: var(--spacing-sm);
+      background-color: var(--background-color);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: var(--spacing-xl);
+    }
+
+    /* Package Colors */
+    .package-bronze { border-left-color: #cd7f32; }
+    .package-silver { border-left-color: #c0c0c0; }
+    .package-gold { border-left-color: #ffd700; }
+    .package-platinum { border-left-color: #e5e4e2; }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        padding: var(--spacing-md);
+      }
+      
+      .grid-layout {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+      }
+      
+      h1 {
+        font-size: var(--font-size-2xl);
+      }
+      
+      .button-group {
+        flex-direction: column;
+      }
+      
+      button {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .section-card {
+        padding: var(--spacing-lg);
+      }
+      
+      h1 {
+        font-size: var(--font-size-xl);
+        margin-bottom: var(--spacing-lg);
+      }
+    }
+
+    /* Loading and Animation States */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    /* Focus Indicators for Accessibility */
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Transaction Entry System</h1>
+    
+    <div class="grid-layout">
+      <div class="section-card">
+        <h2>Add New Transaction</h2>
+        <form id="transaction-form">
+          <div class="form-group">
+            <label for="date">Transaction Date</label>
+            <input type="date" id="date" required>
+          </div>
+
+          <div class="form-group">
+            <label for="amount">Amount ($)</label>
+            <input type="number" id="amount" step="0.01" min="0" required placeholder="0.00">
+          </div>
+
+          <div class="form-group">
+            <label for="package">Package Type</label>
+            <select id="package" required>
+              <option value="Bronze">Bronze</option>
+              <option value="Silver">Silver</option>
+              <option value="Gold">Gold</option>
+              <option value="Platinum">Platinum</option>
+            </select>
+          </div>
+
+          <div class="button-group">
+            <button type="submit" class="btn-primary">Add Transaction</button>
+            <button type="button" id="clear-button" class="btn-danger">Clear All Data</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="section-card">
+        <h2>Transaction History</h2>
+        <ul id="transaction-list"></ul>
+      </div>
+
+      <div class="section-card">
+        <h2>Current Monthly Limits</h2>
+        <p class="note">Based on transactions from the last 30 days</p>
+        <div id="limits"></div>
+      </div>
+
+      <div class="section-card">
+        <h2>Future Availability Check</h2>
+        <div class="form-group">
+          <label for="future-date">Select Future Date</label>
+          <input type="date" id="future-date">
+        </div>
+        <div class="button-group">
+          <button type="button" id="check-future" class="btn-primary">Check Availability</button>
+          <button type="button" id="clear-future" class="btn-secondary">Clear</button>
+        </div>
+        <div id="future-availability"></div>
+      </div>
+
+      <div class="section-card">
+        <h2>Daily Usage Check</h2>
+        <p class="note">Daily availability is also limited by the remaining monthly limit</p>
+        <div class="form-group">
+          <label for="specific-date">Select Date</label>
+          <input type="date" id="specific-date">
+        </div>
+        <div class="button-group">
+          <button type="button" id="check-daily" class="btn-primary">Check Daily Usage</button>
+          <button type="button" id="clear-daily" class="btn-secondary">Clear</button>
+        </div>
+        <div id="daily-availability"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const limits = {
+      Bronze: { daily: 750, monthly: 5000 },
+      Silver: { daily: 1000, monthly: 8000 },
+      Gold: { daily: 1500, monthly: 15000 },
+      Platinum: { daily: 4000, monthly: 15000 }
+    };
+
+    let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+
+    function getPackageClass(packageName) {
+      return `package-${packageName.toLowerCase()}`;
+    }
+
+    function renderTransactions() {
+      const list = document.getElementById('transaction-list');
+      list.innerHTML = '';
+      
+      if (transactions.length === 0) {
+        return; // CSS handles empty state
+      }
+      
+      const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      sortedTransactions.forEach(t => {
+        const item = document.createElement('li');
+        item.className = `fade-in ${getPackageClass(t.package)}`;
+        item.innerHTML = `
+          <strong>${t.date}</strong><br>
+          $${t.amount.toFixed(2)} - ${t.package}
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function renderLimits() {
+      const now = new Date();
+      const cutoff = new Date(now);
+      cutoff.setDate(now.getDate() - 30);
+      const selectedPackage = document.getElementById('package').value;
+      const filtered = transactions.filter(t => new Date(t.date) >= cutoff);
+      const pkgTotals = {};
+      
+      filtered.forEach(t => {
+        if (!pkgTotals[t.package]) {
+          pkgTotals[t.package] = 0;
+        }
+        pkgTotals[t.package] += t.amount;
+      });
+      
+      const used = pkgTotals[selectedPackage] || 0;
+      const monthlyLeft = Math.max(0, limits[selectedPackage].monthly - used);
+      const dailyLimit = limits[selectedPackage].daily;
+      
+      document.getElementById('limits').innerHTML = `
+        <div class="info-display fade-in">
+          <p><strong>${selectedPackage} Package</strong></p>
+          <p>Monthly Limit: $${limits[selectedPackage].monthly.toLocaleString()}</p>
+          <p>Used (30 days): $${used.toFixed(2)}</p>
+          <p>Remaining: $${monthlyLeft.toFixed(2)}</p>
+          <p>Daily Limit: $${dailyLimit.toLocaleString()}</p>
+        </div>
+      `;
+    }
+
+    function render() {
+      renderTransactions();
+      renderLimits();
+    }
+
+    document.getElementById('transaction-form').addEventListener('submit', function(event) {
+      event.preventDefault();
+      const date = document.getElementById('date').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+      const pkg = document.getElementById('package').value;
+
+      const now = new Date();
+      const cutoff = new Date(now);
+      cutoff.setDate(now.getDate() - 30);
+
+      const recentTransactions = transactions.filter(t => t.package === pkg && new Date(t.date) >= cutoff);
+      const totalMonthly = recentTransactions.reduce((sum, t) => sum + t.amount, 0);
+      const totalDaily = transactions.filter(t => t.package === pkg && t.date === date).reduce((sum, t) => sum + t.amount, 0);
+
+      if (totalMonthly + amount > limits[pkg].monthly) {
+        alert(`Transaction exceeds the monthly limit for ${pkg}. Current monthly usage: $${totalMonthly.toFixed(2)}. Limit: $${limits[pkg].monthly}.`);
+        return;
+      }
+
+      if (totalDaily + amount > limits[pkg].daily) {
+        alert(`Transaction exceeds the daily limit for ${pkg} on ${date}. Current daily usage: $${totalDaily.toFixed(2)}. Limit: $${limits[pkg].daily}.`);
+        return;
+      }
+
+      transactions.push({ date, amount, package: pkg });
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+      
+      // Reset form
+      document.getElementById('date').value = '';
+      document.getElementById('amount').value = '';
+      
+      render();
+    });
+
+    document.getElementById('clear-button').addEventListener('click', function () {
+      if (confirm('Are you sure you want to clear all transactions? This action cannot be undone.')) {
+        transactions = [];
+        localStorage.removeItem('transactions');
+        render();
+      }
+    });
+
+    document.getElementById('package').addEventListener('change', render);
+
+    document.getElementById('check-daily').addEventListener('click', function () {
+      const dateValue = document.getElementById('specific-date').value;
+      if (!dateValue) {
+        alert('Please select a date first.');
+        return;
+      }
+      
+      const selectedPackage = document.getElementById('package').value;
+      const now = new Date(dateValue);
+      const cutoff = new Date(now);
+      cutoff.setDate(now.getDate() - 30);
+
+      const totalDaily = transactions.filter(t => t.package === selectedPackage && t.date === dateValue).reduce((sum, t) => sum + t.amount, 0);
+      const totalMonthly = transactions.filter(t => t.package === selectedPackage && new Date(t.date) >= cutoff && new Date(t.date) <= now).reduce((sum, t) => sum + t.amount, 0);
+
+      const dailyLeft = Math.max(0, limits[selectedPackage].daily - totalDaily);
+      const monthlyLeft = Math.max(0, limits[selectedPackage].monthly - totalMonthly);
+
+      document.getElementById('daily-availability').innerHTML = `
+        <div class="info-display fade-in">
+          <p><strong>${selectedPackage} on ${dateValue}</strong></p>
+          <p>Daily Used: $${totalDaily.toFixed(2)}</p>
+          <p>Daily Remaining: $${dailyLeft.toFixed(2)}</p>
+          <p>Monthly Remaining: $${monthlyLeft.toFixed(2)}</p>
+          <p>Available: $${Math.min(dailyLeft, monthlyLeft).toFixed(2)}</p>
+        </div>
+      `;
+    });
+
+    document.getElementById('clear-daily').addEventListener('click', function () {
+      document.getElementById('specific-date').value = '';
+      document.getElementById('daily-availability').innerHTML = '';
+    });
+
+    document.getElementById('check-future').addEventListener('click', function () {
+      const dateValue = document.getElementById('future-date').value;
+      if (!dateValue) {
+        alert('Please select a future date first.');
+        return;
+      }
+      
+      const selectedPackage = document.getElementById('package').value;
+      
+      document.getElementById('future-availability').innerHTML = `
+        <div class="info-display fade-in">
+          <p><strong>${selectedPackage} Future Availability</strong></p>
+          <p>Date: ${dateValue}</p>
+          <p>Daily Limit: $${limits[selectedPackage].daily.toLocaleString()}</p>
+          <p>Monthly Limit: $${limits[selectedPackage].monthly.toLocaleString()}</p>
+          <p class="note">Actual availability will depend on transactions made between now and the selected date.</p>
+        </div>
+      `;
+    });
+
+    document.getElementById('clear-future').addEventListener('click', function () {
+      document.getElementById('future-date').value = '';
+      document.getElementById('future-availability').innerHTML = '';
+    });
+
+    // Initialize the application
+    render();
+  </script>
+</body>
+</html>
