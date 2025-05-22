@@ -699,16 +699,14 @@
       const packageTransactions = transactions.filter(t => t.package === packageType);
       if (packageTransactions.length === 0) return false;
 
-      const earliest = getEarliestTransactionDate(packageType);
-      const latest = getLatestTransactionDate(packageType);
+      // Get the current window based on existing transactions
+      const currentWindow = calculateRolling30DayUsage(new Date(), packageType);
+      if (!currentWindow.startDate || !currentWindow.endDate) return false;
+
       const newDate = new Date(newTransactionDate);
 
-      // Current window is from earliest to earliest + 29 days
-      const currentWindowEnd = new Date(earliest);
-      currentWindowEnd.setDate(currentWindowEnd.getDate() + 29);
-
       // Check if new transaction is outside the current window
-      return newDate < earliest || newDate > currentWindowEnd;
+      return newDate < currentWindow.startDate || newDate > currentWindow.endDate;
     }
 
     function calculateRolling30DayUsage(referenceDate, packageType) {
@@ -724,12 +722,32 @@
           return { usage: 0, startDate: null, endDate: null, transactions: [] };
         }
         
-        // Always start from the earliest transaction date
-        startDate = new Date(packageTransactions[0].date);
+        // Find the optimal 30-day window that captures the most recent transactions
+        const earliestDate = new Date(packageTransactions[0].date);
+        const latestDate = new Date(packageTransactions[packageTransactions.length - 1].date);
         
-        // End date is always 29 days after the earliest transaction (30-day period inclusive)
-        endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + 29);
+        // If all transactions fit within 30 days from earliest, use that
+        const earliestWindowEnd = new Date(earliestDate);
+        earliestWindowEnd.setDate(earliestWindowEnd.getDate() + 29);
+        
+        if (latestDate <= earliestWindowEnd) {
+          // All transactions fit in the window starting from earliest
+          startDate = earliestDate;
+          endDate = earliestWindowEnd;
+        } else {
+          // Transactions span more than 30 days - use a sliding window
+          // Start from 30 days before the latest transaction
+          endDate = latestDate;
+          startDate = new Date(endDate);
+          startDate.setDate(startDate.getDate() - 29);
+          
+          // But don't go before the earliest transaction
+          if (startDate < earliestDate) {
+            startDate = earliestDate;
+            endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + 29);
+          }
+        }
         
       } else {
         // Method 2: Traditional 30 days back
@@ -756,34 +774,61 @@
     // Modal Functions
     function showWindowWarningModal(newDate, amount, packageType) {
       const packageTransactions = transactions.filter(t => t.package === packageType);
-      const earliest = getEarliestTransactionDate(packageType);
-      const latest = getLatestTransactionDate(packageType);
+      const currentWindow = calculateRolling30DayUsage(new Date(), packageType);
       const newTransactionDate = new Date(newDate);
-
-      const currentWindowEnd = new Date(earliest);
-      currentWindowEnd.setDate(currentWindowEnd.getDate() + 29);
 
       let warningMessage = '';
       let periodInfo = '';
 
-      if (newTransactionDate < earliest) {
-        const daysBefore = getDaysDifference(newTransactionDate, earliest);
-        warningMessage = `The transaction date (${formatDate(newDate)}) is ${daysBefore} days before your earliest transaction (${formatDate(earliest.toISOString().split('T')[0])}).`;
-        periodInfo = `<div class="period-info">
-          <strong>Current 30-day period:</strong> ${formatDate(earliest.toISOString().split('T')[0])} to ${formatDate(currentWindowEnd.toISOString().split('T')[0])}<br>
-          <strong>New 30-day period will be:</strong> ${formatDate(newDate)} to ${formatDate(new Date(newTransactionDate.getTime() + 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
-        </div>`;
-      } else if (newTransactionDate > currentWindowEnd) {
-        const daysAfter = getDaysDifference(newTransactionDate, currentWindowEnd);
-        warningMessage = `The transaction date (${formatDate(newDate)}) is ${daysAfter} days after your current 30-day window ends (${formatDate(currentWindowEnd.toISOString().split('T')[0])}).`;
+      if (newTransactionDate < currentWindow.startDate) {
+        const daysBefore = getDaysDifference(newTransactionDate, currentWindow.startDate);
+        warningMessage = `The transaction date (${formatDate(newDate)}) is ${daysBefore} days before your current 30-day window starts.`;
         
-        // Calculate what the new window would be
-        const newWindowStart = new Date(newTransactionDate);
+        // Calculate new window: if we add this earlier transaction, window might shift
+        const tempTransactions = [...transactions, { date: newDate, amount, package: packageType }];
+        const tempPackageTransactions = tempTransactions
+          .filter(t => t.package === packageType)
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        const newEarliest = new Date(tempPackageTransactions[0].date);
+        const newLatest = new Date(tempPackageTransactions[tempPackageTransactions.length - 1].date);
+        
+        // Determine what the new window would be
+        let newWindowStart, newWindowEnd;
+        const earliestWindowEnd = new Date(newEarliest);
+        earliestWindowEnd.setDate(earliestWindowEnd.getDate() + 29);
+        
+        if (newLatest <= earliestWindowEnd) {
+          newWindowStart = newEarliest;
+          newWindowEnd = earliestWindowEnd;
+        } else {
+          newWindowEnd = newLatest;
+          newWindowStart = new Date(newWindowEnd);
+          newWindowStart.setDate(newWindowStart.getDate() - 29);
+          if (newWindowStart < newEarliest) {
+            newWindowStart = newEarliest;
+            newWindowEnd = new Date(newWindowStart);
+            newWindowEnd.setDate(newWindowEnd.getDate() + 29);
+          }
+        }
+        
+        periodInfo = `<div class="period-info">
+          <strong>Current 30-day period:</strong> ${formatDate(currentWindow.startDate.toISOString().split('T')[0])} to ${formatDate(currentWindow.endDate.toISOString().split('T')[0])}<br>
+          <strong>New 30-day period will be:</strong> ${formatDate(newWindowStart.toISOString().split('T')[0])} to ${formatDate(newWindowEnd.toISOString().split('T')[0])}
+        </div>`;
+        
+      } else if (newTransactionDate > currentWindow.endDate) {
+        const daysAfter = getDaysDifference(newTransactionDate, currentWindow.endDate);
+        warningMessage = `The transaction date (${formatDate(newDate)}) is ${daysAfter} days after your current 30-day window ends.`;
+        
+        // Calculate new window: latest transaction becomes end date, work backwards 29 days
+        const newWindowEnd = newTransactionDate;
+        const newWindowStart = new Date(newWindowEnd);
         newWindowStart.setDate(newWindowStart.getDate() - 29);
         
         periodInfo = `<div class="period-info">
-          <strong>Current 30-day period:</strong> ${formatDate(earliest.toISOString().split('T')[0])} to ${formatDate(currentWindowEnd.toISOString().split('T')[0])}<br>
-          <strong>New 30-day period will be:</strong> ${formatDate(newWindowStart.toISOString().split('T')[0])} to ${formatDate(newDate)}
+          <strong>Current 30-day period:</strong> ${formatDate(currentWindow.startDate.toISOString().split('T')[0])} to ${formatDate(currentWindow.endDate.toISOString().split('T')[0])}<br>
+          <strong>New 30-day period will be:</strong> ${formatDate(newWindowStart.toISOString().split('T')[0])} to ${formatDate(newWindowEnd.toISOString().split('T')[0])}
         </div>`;
       }
 
