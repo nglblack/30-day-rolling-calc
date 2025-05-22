@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rolling 30-Day Calculator</title>
+  <title>Rolling 30-Day Transaction Calculator</title>
   <style>
     /* CSS Reset and Base Styles */
     * {
@@ -217,7 +217,7 @@
     /* List Styles */
     #transaction-list {
       list-style: none;
-      max-height: 300px;
+      max-height: 400px;
       overflow-y: auto;
     }
 
@@ -275,14 +275,6 @@
       background-color: var(--background-color);
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-color);
-    }
-
-    /* Empty State */
-    .empty-state {
-      text-align: center;
-      color: var(--text-muted);
-      font-style: italic;
-      padding: var(--spacing-xl);
     }
 
     /* Package Colors */
@@ -343,13 +335,34 @@
       outline: 2px solid var(--primary-color);
       outline-offset: 2px;
     }
+
+    /* Alert Styles */
+    .alert {
+      padding: var(--spacing-md);
+      margin: var(--spacing-md) 0;
+      border-radius: var(--radius-md);
+      border: 1px solid;
+    }
+
+    .alert-warning {
+      background-color: #fef3c7;
+      border-color: #f59e0b;
+      color: #92400e;
+    }
+
+    .alert-success {
+      background-color: #d1fae5;
+      border-color: #10b981;
+      color: #065f46;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Transaction Entry System</h1>
+    <h1>Rolling 30-Day Transaction Calculator</h1>
     
     <div class="grid-layout">
+      <!-- Transaction Entry Form -->
       <div class="section-card">
         <h2>Add New Transaction</h2>
         <form id="transaction-form">
@@ -380,19 +393,23 @@
         </form>
       </div>
 
+      <!-- Transaction History -->
       <div class="section-card">
         <h2>Transaction History</h2>
         <ul id="transaction-list"></ul>
       </div>
 
+      <!-- Current Limits -->
       <div class="section-card">
-        <h2>Current Monthly Limits</h2>
+        <h2>Current Rolling 30-Day Status</h2>
         <p class="note">Based on transactions from the last 30 days</p>
         <div id="limits"></div>
       </div>
 
+      <!-- Future Availability -->
       <div class="section-card">
-        <h2>Future Availability Check</h2>
+        <h2>Future Availability Calculator</h2>
+        <p class="note">Calculate availability for any future date based on rolling 30-day limits</p>
         <div class="form-group">
           <label for="future-date">Select Future Date</label>
           <input type="date" id="future-date">
@@ -404,15 +421,16 @@
         <div id="future-availability"></div>
       </div>
 
+      <!-- Daily Usage Check -->
       <div class="section-card">
-        <h2>Daily Usage Check</h2>
-        <p class="note">Daily availability is also limited by the remaining monthly limit</p>
+        <h2>Specific Date Analysis</h2>
+        <p class="note">Check usage and availability for any specific date</p>
         <div class="form-group">
           <label for="specific-date">Select Date</label>
           <input type="date" id="specific-date">
         </div>
         <div class="button-group">
-          <button type="button" id="check-daily" class="btn-primary">Check Daily Usage</button>
+          <button type="button" id="check-daily" class="btn-primary">Analyze Date</button>
           <button type="button" id="clear-daily" class="btn-secondary">Clear</button>
         </div>
         <div id="daily-availability"></div>
@@ -421,6 +439,7 @@
   </div>
 
   <script>
+    // Package limits configuration
     const limits = {
       Bronze: { daily: 750, monthly: 5000 },
       Silver: { daily: 1000, monthly: 8000 },
@@ -428,12 +447,53 @@
       Platinum: { daily: 4000, monthly: 15000 }
     };
 
+    // Load transactions from localStorage
     let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
 
+    // Utility Functions
     function getPackageClass(packageName) {
       return `package-${packageName.toLowerCase()}`;
     }
 
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+      }).format(amount);
+    }
+
+    function formatDate(dateString) {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+
+    function getTransactionsInRange(startDate, endDate, packageType = null) {
+      return transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        const inRange = transactionDate >= startDate && transactionDate <= endDate;
+        return packageType ? (inRange && t.package === packageType) : inRange;
+      });
+    }
+
+    function calculateRolling30DayUsage(referenceDate, packageType) {
+      const endDate = new Date(referenceDate);
+      const startDate = new Date(endDate);
+      startDate.setDate(endDate.getDate() - 30);
+      
+      const relevantTransactions = getTransactionsInRange(startDate, endDate, packageType);
+      return relevantTransactions.reduce((sum, t) => sum + t.amount, 0);
+    }
+
+    function calculateDailyUsage(date, packageType) {
+      return transactions
+        .filter(t => t.date === date && t.package === packageType)
+        .reduce((sum, t) => sum + t.amount, 0);
+    }
+
+    // Render Functions
     function renderTransactions() {
       const list = document.getElementById('transaction-list');
       list.innerHTML = '';
@@ -448,72 +508,81 @@
         const item = document.createElement('li');
         item.className = `fade-in ${getPackageClass(t.package)}`;
         item.innerHTML = `
-          <strong>${t.date}</strong><br>
-          $${t.amount.toFixed(2)} - ${t.package}
+          <strong>${formatDate(t.date)}</strong><br>
+          ${formatCurrency(t.amount)} - ${t.package}
         `;
         list.appendChild(item);
       });
     }
 
-    function renderLimits() {
-      const now = new Date();
-      const cutoff = new Date(now);
-      cutoff.setDate(now.getDate() - 30);
+    function renderCurrentLimits() {
       const selectedPackage = document.getElementById('package').value;
-      const filtered = transactions.filter(t => new Date(t.date) >= cutoff);
-      const pkgTotals = {};
+      const today = new Date();
+      const monthlyUsage = calculateRolling30DayUsage(today, selectedPackage);
+      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
       
-      filtered.forEach(t => {
-        if (!pkgTotals[t.package]) {
-          pkgTotals[t.package] = 0;
-        }
-        pkgTotals[t.package] += t.amount;
-      });
+      const todayString = today.toISOString().split('T')[0];
+      const dailyUsage = calculateDailyUsage(todayString, selectedPackage);
+      const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
       
-      const used = pkgTotals[selectedPackage] || 0;
-      const monthlyLeft = Math.max(0, limits[selectedPackage].monthly - used);
-      const dailyLimit = limits[selectedPackage].daily;
+      const availableToday = Math.min(dailyRemaining, monthlyRemaining);
+      
+      const past30Days = new Date(today);
+      past30Days.setDate(today.getDate() - 30);
       
       document.getElementById('limits').innerHTML = `
         <div class="info-display fade-in">
-          <p><strong>${selectedPackage} Package</strong></p>
-          <p>Monthly Limit: $${limits[selectedPackage].monthly.toLocaleString()}</p>
-          <p>Used (30 days): $${used.toFixed(2)}</p>
-          <p>Remaining: $${monthlyLeft.toFixed(2)}</p>
-          <p>Daily Limit: $${dailyLimit.toLocaleString()}</p>
+          <p><strong>${selectedPackage} Package Status</strong></p>
+          <p>Rolling 30-day period: ${formatDate(past30Days.toISOString().split('T')[0])} to ${formatDate(todayString)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p>Monthly Limit: ${formatCurrency(limits[selectedPackage].monthly)}</p>
+          <p>Monthly Used: ${formatCurrency(monthlyUsage)}</p>
+          <p>Monthly Remaining: ${formatCurrency(monthlyRemaining)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p>Daily Limit: ${formatCurrency(limits[selectedPackage].daily)}</p>
+          <p>Today's Usage: ${formatCurrency(dailyUsage)}</p>
+          <p>Daily Remaining: ${formatCurrency(dailyRemaining)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p><strong>Available Today: ${formatCurrency(availableToday)}</strong></p>
         </div>
       `;
     }
 
-    function render() {
+    function renderAll() {
       renderTransactions();
-      renderLimits();
+      renderCurrentLimits();
     }
 
+    // Event Listeners
     document.getElementById('transaction-form').addEventListener('submit', function(event) {
       event.preventDefault();
+      
       const date = document.getElementById('date').value;
       const amount = parseFloat(document.getElementById('amount').value);
       const pkg = document.getElementById('package').value;
 
-      const now = new Date();
-      const cutoff = new Date(now);
-      cutoff.setDate(now.getDate() - 30);
-
-      const recentTransactions = transactions.filter(t => t.package === pkg && new Date(t.date) >= cutoff);
-      const totalMonthly = recentTransactions.reduce((sum, t) => sum + t.amount, 0);
-      const totalDaily = transactions.filter(t => t.package === pkg && t.date === date).reduce((sum, t) => sum + t.amount, 0);
-
-      if (totalMonthly + amount > limits[pkg].monthly) {
-        alert(`Transaction exceeds the monthly limit for ${pkg}. Current monthly usage: $${totalMonthly.toFixed(2)}. Limit: $${limits[pkg].monthly}.`);
+      if (!date || !amount || amount <= 0) {
+        alert('Please enter valid date and amount.');
         return;
       }
 
-      if (totalDaily + amount > limits[pkg].daily) {
-        alert(`Transaction exceeds the daily limit for ${pkg} on ${date}. Current daily usage: $${totalDaily.toFixed(2)}. Limit: $${limits[pkg].daily}.`);
+      // Calculate current usage
+      const transactionDate = new Date(date);
+      const monthlyUsage = calculateRolling30DayUsage(transactionDate, pkg);
+      const dailyUsage = calculateDailyUsage(date, pkg);
+
+      // Check limits
+      if (monthlyUsage + amount > limits[pkg].monthly) {
+        alert(`Transaction exceeds monthly limit!\n\nCurrent 30-day rolling usage: ${formatCurrency(monthlyUsage)}\nTransaction amount: ${formatCurrency(amount)}\nMonthly limit: ${formatCurrency(limits[pkg].monthly)}\nExceeds by: ${formatCurrency((monthlyUsage + amount) - limits[pkg].monthly)}`);
         return;
       }
 
+      if (dailyUsage + amount > limits[pkg].daily) {
+        alert(`Transaction exceeds daily limit!\n\nCurrent daily usage: ${formatCurrency(dailyUsage)}\nTransaction amount: ${formatCurrency(amount)}\nDaily limit: ${formatCurrency(limits[pkg].daily)}\nExceeds by: ${formatCurrency((dailyUsage + amount) - limits[pkg].daily)}`);
+        return;
+      }
+
+      // Add transaction
       transactions.push({ date, amount, package: pkg });
       localStorage.setItem('transactions', JSON.stringify(transactions));
       
@@ -521,52 +590,34 @@
       document.getElementById('date').value = '';
       document.getElementById('amount').value = '';
       
-      render();
+      renderAll();
+      
+      // Show success message
+      const successDiv = document.createElement('div');
+      successDiv.className = 'alert alert-success fade-in';
+      successDiv.innerHTML = `Transaction added successfully! ${formatCurrency(amount)} on ${formatDate(date)}`;
+      document.getElementById('transaction-form').appendChild(successDiv);
+      
+      setTimeout(() => {
+        if (successDiv.parentNode) {
+          successDiv.parentNode.removeChild(successDiv);
+        }
+      }, 3000);
     });
 
     document.getElementById('clear-button').addEventListener('click', function () {
       if (confirm('Are you sure you want to clear all transactions? This action cannot be undone.')) {
         transactions = [];
         localStorage.removeItem('transactions');
-        render();
+        renderAll();
+        
+        // Clear all display areas
+        document.getElementById('future-availability').innerHTML = '';
+        document.getElementById('daily-availability').innerHTML = '';
       }
     });
 
-    document.getElementById('package').addEventListener('change', render);
-
-    document.getElementById('check-daily').addEventListener('click', function () {
-      const dateValue = document.getElementById('specific-date').value;
-      if (!dateValue) {
-        alert('Please select a date first.');
-        return;
-      }
-      
-      const selectedPackage = document.getElementById('package').value;
-      const now = new Date(dateValue);
-      const cutoff = new Date(now);
-      cutoff.setDate(now.getDate() - 30);
-
-      const totalDaily = transactions.filter(t => t.package === selectedPackage && t.date === dateValue).reduce((sum, t) => sum + t.amount, 0);
-      const totalMonthly = transactions.filter(t => t.package === selectedPackage && new Date(t.date) >= cutoff && new Date(t.date) <= now).reduce((sum, t) => sum + t.amount, 0);
-
-      const dailyLeft = Math.max(0, limits[selectedPackage].daily - totalDaily);
-      const monthlyLeft = Math.max(0, limits[selectedPackage].monthly - totalMonthly);
-
-      document.getElementById('daily-availability').innerHTML = `
-        <div class="info-display fade-in">
-          <p><strong>${selectedPackage} on ${dateValue}</strong></p>
-          <p>Daily Used: $${totalDaily.toFixed(2)}</p>
-          <p>Daily Remaining: $${dailyLeft.toFixed(2)}</p>
-          <p>Monthly Remaining: $${monthlyLeft.toFixed(2)}</p>
-          <p>Available: $${Math.min(dailyLeft, monthlyLeft).toFixed(2)}</p>
-        </div>
-      `;
-    });
-
-    document.getElementById('clear-daily').addEventListener('click', function () {
-      document.getElementById('specific-date').value = '';
-      document.getElementById('daily-availability').innerHTML = '';
-    });
+    document.getElementById('package').addEventListener('change', renderAll);
 
     document.getElementById('check-future').addEventListener('click', function () {
       const dateValue = document.getElementById('future-date').value;
@@ -576,14 +627,30 @@
       }
       
       const selectedPackage = document.getElementById('package').value;
+      const futureDate = new Date(dateValue);
+      
+      // Calculate rolling 30-day usage from the future date
+      const monthlyUsage = calculateRolling30DayUsage(futureDate, selectedPackage);
+      const dailyUsage = calculateDailyUsage(dateValue, selectedPackage);
+      
+      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
+      const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
+      const availableAmount = Math.min(dailyRemaining, monthlyRemaining);
+      
+      const rollback30Days = new Date(futureDate);
+      rollback30Days.setDate(futureDate.getDate() - 30);
       
       document.getElementById('future-availability').innerHTML = `
         <div class="info-display fade-in">
-          <p><strong>${selectedPackage} Future Availability</strong></p>
-          <p>Date: ${dateValue}</p>
-          <p>Daily Limit: $${limits[selectedPackage].daily.toLocaleString()}</p>
-          <p>Monthly Limit: $${limits[selectedPackage].monthly.toLocaleString()}</p>
-          <p class="note">Actual availability will depend on transactions made between now and the selected date.</p>
+          <p><strong>${selectedPackage} Availability on ${formatDate(dateValue)}</strong></p>
+          <p>Rolling 30-day period: ${formatDate(rollback30Days.toISOString().split('T')[0])} to ${formatDate(dateValue)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p>Monthly usage in period: ${formatCurrency(monthlyUsage)}</p>
+          <p>Monthly remaining: ${formatCurrency(monthlyRemaining)}</p>
+          <p>Daily usage on date: ${formatCurrency(dailyUsage)}</p>
+          <p>Daily remaining: ${formatCurrency(dailyRemaining)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p><strong>Available amount: ${formatCurrency(availableAmount)}</strong></p>
         </div>
       `;
     });
@@ -593,8 +660,68 @@
       document.getElementById('future-availability').innerHTML = '';
     });
 
+    document.getElementById('check-daily').addEventListener('click', function () {
+      const dateValue = document.getElementById('specific-date').value;
+      if (!dateValue) {
+        alert('Please select a date first.');
+        return;
+      }
+      
+      const selectedPackage = document.getElementById('package').value;
+      const analysisDate = new Date(dateValue);
+      
+      // Calculate usage for the specific date
+      const monthlyUsage = calculateRolling30DayUsage(analysisDate, selectedPackage);
+      const dailyUsage = calculateDailyUsage(dateValue, selectedPackage);
+      
+      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
+      const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
+      const availableAmount = Math.min(dailyRemaining, monthlyRemaining);
+      
+      const rollback30Days = new Date(analysisDate);
+      rollback30Days.setDate(analysisDate.getDate() - 30);
+      
+      // Get transactions for the specific date
+      const dayTransactions = transactions.filter(t => 
+        t.date === dateValue && t.package === selectedPackage
+      );
+      
+      let transactionsList = '';
+      if (dayTransactions.length > 0) {
+        transactionsList = '<p><strong>Transactions on this date:</strong></p><ul style="margin-left: 20px;">';
+        dayTransactions.forEach(t => {
+          transactionsList += `<li>${formatCurrency(t.amount)}</li>`;
+        });
+        transactionsList += '</ul>';
+      }
+      
+      document.getElementById('daily-availability').innerHTML = `
+        <div class="info-display fade-in">
+          <p><strong>${selectedPackage} Analysis for ${formatDate(dateValue)}</strong></p>
+          <p>Rolling 30-day period: ${formatDate(rollback30Days.toISOString().split('T')[0])} to ${formatDate(dateValue)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p>Monthly usage in period: ${formatCurrency(monthlyUsage)}</p>
+          <p>Monthly remaining: ${formatCurrency(monthlyRemaining)}</p>
+          <p>Daily usage: ${formatCurrency(dailyUsage)}</p>
+          <p>Daily remaining: ${formatCurrency(dailyRemaining)}</p>
+          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+          <p><strong>Available amount: ${formatCurrency(availableAmount)}</strong></p>
+          ${transactionsList}
+        </div>
+      `;
+    });
+
+    document.getElementById('clear-daily').addEventListener('click', function () {
+      document.getElementById('specific-date').value = '';
+      document.getElementById('daily-availability').innerHTML = '';
+    });
+
     // Initialize the application
-    render();
+    renderAll();
+
+    // Set today's date as default for the transaction form
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').value = today;
   </script>
 </body>
 </html>
