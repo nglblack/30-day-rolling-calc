@@ -336,6 +336,28 @@
       min-width: 200px;
     }
 
+    /* Rolling Period Options */
+    .rolling-options {
+      margin-bottom: var(--spacing-lg);
+      text-align: center;
+      padding: var(--spacing-md);
+      background-color: var(--surface-color);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+
+    .rolling-options label {
+      display: inline-block;
+      margin-right: var(--spacing-md);
+      margin-bottom: var(--spacing-sm);
+      font-weight: 500;
+    }
+
+    .rolling-options select {
+      width: auto;
+      min-width: 250px;
+    }
+
     /* Responsive Design */
     @media (max-width: 768px) {
       .container {
@@ -424,6 +446,15 @@
         <option value="european">European (01/05/2025)</option>
       </select>
     </div>
+
+    <!-- Rolling Period Calculation Method -->
+    <div class="rolling-options">
+      <label for="rolling-method">Rolling 30-Day Period:</label>
+      <select id="rolling-method">
+        <option value="earliest">From Earliest Transaction (Recommended)</option>
+        <option value="traditional">Traditional 30-Days Back</option>
+      </select>
+    </div>
     
     <div class="grid-layout">
       <!-- Transaction Entry Form -->
@@ -466,7 +497,7 @@
       <!-- Current Limits -->
       <div class="section-card">
         <h2>Current Rolling 30-Day Status</h2>
-        <p class="note">Based on transactions from the last 30 days</p>
+        <p class="note">Based on your selected rolling period method</p>
         <div id="limits"></div>
       </div>
 
@@ -514,8 +545,9 @@
     // Load transactions from localStorage
     let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
 
-    // Load date format preference
+    // Load preferences
     let dateFormat = localStorage.getItem('dateFormat') || 'us';
+    let rollingMethod = localStorage.getItem('rollingMethod') || 'earliest';
 
     // Utility Functions
     function getPackageClass(packageName) {
@@ -564,13 +596,59 @@
       });
     }
 
+    function getEarliestTransactionDate(packageType) {
+      const packageTransactions = transactions.filter(t => t.package === packageType);
+      if (packageTransactions.length === 0) return null;
+      
+      const earliestDate = packageTransactions.reduce((earliest, transaction) => {
+        return transaction.date < earliest ? transaction.date : earliest;
+      }, packageTransactions[0].date);
+      
+      return new Date(earliestDate);
+    }
+
     function calculateRolling30DayUsage(referenceDate, packageType) {
-      const endDate = new Date(referenceDate);
-      const startDate = new Date(endDate);
-      startDate.setDate(endDate.getDate() - 30);
+      let startDate, endDate;
+      
+      if (rollingMethod === 'earliest') {
+        // Method 1: From earliest transaction date
+        const earliestDate = getEarliestTransactionDate(packageType);
+        if (!earliestDate) return 0;
+        
+        // Find the 30-day window that includes the reference date
+        const referenceDateObj = new Date(referenceDate);
+        
+        // Calculate how many 30-day periods have passed since the earliest transaction
+        const daysSinceEarliest = Math.floor((referenceDateObj - earliestDate) / (1000 * 60 * 60 * 24));
+        const periodNumber = Math.floor(daysSinceEarliest / 30);
+        
+        // Calculate the start of the current 30-day period
+        startDate = new Date(earliestDate);
+        startDate.setDate(earliestDate.getDate() + (periodNumber * 30));
+        
+        // End date is 30 days after start date
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 29); // 29 days after start = 30 days total
+        
+        // If the reference date is beyond the current period, move to the next period
+        if (referenceDateObj > endDate) {
+          startDate.setDate(startDate.getDate() + 30);
+          endDate.setDate(endDate.getDate() + 30);
+        }
+      } else {
+        // Method 2: Traditional 30 days back
+        endDate = new Date(referenceDate);
+        startDate = new Date(endDate);
+        startDate.setDate(endDate.getDate() - 29); // 29 days back = 30 days total including today
+      }
       
       const relevantTransactions = getTransactionsInRange(startDate, endDate, packageType);
-      return relevantTransactions.reduce((sum, t) => sum + t.amount, 0);
+      return {
+        usage: relevantTransactions.reduce((sum, t) => sum + t.amount, 0),
+        startDate: startDate,
+        endDate: endDate,
+        transactions: relevantTransactions
+      };
     }
 
     function calculateDailyUsage(date, packageType) {
@@ -620,45 +698,52 @@
     }
 
     function renderCurrentLimits() {
-  const selectedPackage = document.getElementById('package').value;
-  
-  // Get today's date in local timezone (same format as form input)
-  const today = new Date();
-  const todayString = today.getFullYear() + '-' + 
-    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-    String(today.getDate()).padStart(2, '0');
-  
-  const monthlyUsage = calculateRolling30DayUsage(today, selectedPackage);
-  const dailyUsage = calculateDailyUsage(todayString, selectedPackage);
-  
-  const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
-  const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
-  
-  const availableToday = Math.min(dailyRemaining, monthlyRemaining);
-  
-  const past30Days = new Date(today);
-  past30Days.setDate(today.getDate() - 30);
-  const past30DaysString = past30Days.getFullYear() + '-' + 
-    String(past30Days.getMonth() + 1).padStart(2, '0') + '-' + 
-    String(past30Days.getDate()).padStart(2, '0');
-  
-  document.getElementById('limits').innerHTML = `
-    <div class="info-display fade-in">
-      <p><strong>${selectedPackage} Package Status</strong></p>
-      <p>Rolling 30-day period: ${formatDate(past30DaysString)} to ${formatDate(todayString)}</p>
-      <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-      <p>Monthly Limit: ${formatCurrency(limits[selectedPackage].monthly)}</p>
-      <p>Monthly Used: ${formatCurrency(monthlyUsage)}</p>
-      <p>Monthly Remaining: ${formatCurrency(monthlyRemaining)}</p>
-      <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-      <p>Daily Limit: ${formatCurrency(limits[selectedPackage].daily)}</p>
-      <p>Today's Usage: ${formatCurrency(dailyUsage)}</p>
-      <p>Daily Remaining: ${formatCurrency(dailyRemaining)}</p>
-      <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-      <p><strong>Available Today: ${formatCurrency(availableToday)}</strong></p>
-    </div>
-  `;
-}
+      const selectedPackage = document.getElementById('package').value;
+      
+      // Get today's date in local timezone (same format as form input)
+      const today = new Date();
+      const todayString = today.getFullYear() + '-' + 
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(today.getDate()).padStart(2, '0');
+      
+      const rollingResult = calculateRolling30DayUsage(today, selectedPackage);
+      const dailyUsage = calculateDailyUsage(todayString, selectedPackage);
+      
+      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - rollingResult.usage);
+      const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
+      
+      const availableToday = Math.min(dailyRemaining, monthlyRemaining);
+      
+      const methodDescription = rollingMethod === 'earliest' 
+        ? 'From earliest transaction date' 
+        : 'Traditional 30-days back';
+      
+      let noTransactionsMessage = '';
+      if (rollingMethod === 'earliest' && !rollingResult.startDate) {
+        noTransactionsMessage = '<p style="color: var(--text-muted); font-style: italic;">No transactions recorded for this package yet.</p>';
+      }
+      
+      document.getElementById('limits').innerHTML = `
+        <div class="info-display fade-in">
+          <p><strong>${selectedPackage} Package Status</strong></p>
+          <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">Method: ${methodDescription}</p>
+          ${noTransactionsMessage}
+          ${rollingResult.startDate ? `
+            <p>Rolling 30-day period: ${formatDate(rollingResult.startDate.toISOString().split('T')[0])} to ${formatDate(rollingResult.endDate.toISOString().split('T')[0])}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p>Monthly Limit: ${formatCurrency(limits[selectedPackage].monthly)}</p>
+            <p>Monthly Used: ${formatCurrency(rollingResult.usage)}</p>
+            <p>Monthly Remaining: ${formatCurrency(monthlyRemaining)}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p>Daily Limit: ${formatCurrency(limits[selectedPackage].daily)}</p>
+            <p>Today's Usage: ${formatCurrency(dailyUsage)}</p>
+            <p>Daily Remaining: ${formatCurrency(dailyRemaining)}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p><strong>Available Today: ${formatCurrency(availableToday)}</strong></p>
+          ` : ''}
+        </div>
+      `;
+    }
 
     function renderAll() {
       renderTransactions();
@@ -705,6 +790,24 @@
       }
     });
 
+    document.getElementById('rolling-method').addEventListener('change', function() {
+      rollingMethod = this.value;
+      localStorage.setItem('rollingMethod', rollingMethod);
+      renderAll();
+      
+      // Re-render any existing future/daily availability displays
+      const futureDate = document.getElementById('future-date').value;
+      const specificDate = document.getElementById('specific-date').value;
+      
+      if (futureDate) {
+        document.getElementById('check-future').click();
+      }
+      
+      if (specificDate) {
+        document.getElementById('check-daily').click();
+      }
+    });
+
     document.getElementById('transaction-form').addEventListener('submit', function(event) {
       event.preventDefault();
       
@@ -719,12 +822,12 @@
 
       // Calculate current usage
       const transactionDate = new Date(date);
-      const monthlyUsage = calculateRolling30DayUsage(transactionDate, pkg);
+      const rollingResult = calculateRolling30DayUsage(transactionDate, pkg);
       const dailyUsage = calculateDailyUsage(date, pkg);
 
       // Check limits
-      if (monthlyUsage + amount > limits[pkg].monthly) {
-        alert(`Transaction exceeds monthly limit!\n\nCurrent 30-day rolling usage: ${formatCurrency(monthlyUsage)}\nTransaction amount: ${formatCurrency(amount)}\nMonthly limit: ${formatCurrency(limits[pkg].monthly)}\nExceeds by: ${formatCurrency((monthlyUsage + amount) - limits[pkg].monthly)}`);
+      if (rollingResult.usage + amount > limits[pkg].monthly) {
+        alert(`Transaction exceeds monthly limit!\n\nCurrent rolling 30-day usage: ${formatCurrency(rollingResult.usage)}\nTransaction amount: ${formatCurrency(amount)}\nMonthly limit: ${formatCurrency(limits[pkg].monthly)}\nExceeds by: ${formatCurrency((rollingResult.usage + amount) - limits[pkg].monthly)}`);
         return;
       }
 
@@ -781,30 +884,43 @@
       const futureDate = new Date(dateValue);
       
       // Calculate rolling 30-day usage from the future date
-      const monthlyUsage = calculateRolling30DayUsage(futureDate, selectedPackage);
+      const rollingResult = calculateRolling30DayUsage(futureDate, selectedPackage);
       const dailyUsage = calculateDailyUsage(dateValue, selectedPackage);
       
-      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
+      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - rollingResult.usage);
       const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
       const availableAmount = Math.min(dailyRemaining, monthlyRemaining);
       
-      const rollback30Days = new Date(futureDate);
-      rollback30Days.setDate(futureDate.getDate() - 30);
+      const methodDescription = rollingMethod === 'earliest' 
+        ? 'From earliest transaction date' 
+        : 'Traditional 30-days back';
+      
+      let noDataMessage = '';
+      if (rollingMethod === 'earliest' && !rollingResult.startDate) {
+        noDataMessage = '<p style="color: var(--text-muted); font-style: italic;">No transactions recorded for this package yet.</p>';
+      }
       
       document.getElementById('future-availability').innerHTML = `
         <div class="info-display fade-in">
           <p><strong>${selectedPackage} Availability on ${formatDate(dateValue)}</strong></p>
-          <p>Rolling 30-day period: ${formatDate(rollback30Days.toISOString().split('T')[0])} to ${formatDate(dateValue)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p>Monthly usage in period: ${formatCurrency(monthlyUsage)}</p>
-          <p>Monthly remaining: ${formatCurrency(monthlyRemaining)}</p>
-          <p>Daily usage on date: ${formatCurrency(dailyUsage)}</p>
-          <p>Daily remaining: ${formatCurrency(dailyRemaining)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p><strong>Available amount: ${formatCurrency(availableAmount)}</strong></p>
-          <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-top: 8px;">
-            Daily availability: ${formatCurrency(dailyRemaining)} | Monthly availability: ${formatCurrency(monthlyRemaining)}
-          </p>
+          <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">Method: ${methodDescription}</p>
+          ${noDataMessage}
+          ${rollingResult.startDate ? `
+            <p>Rolling 30-day period: ${formatDate(rollingResult.startDate.toISOString().split('T')[0])} to ${formatDate(rollingResult.endDate.toISOString().split('T')[0])}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p>Monthly usage in period: ${formatCurrency(rollingResult.usage)}</p>
+            <p>Monthly remaining: ${formatCurrency(monthlyRemaining)}</p>
+            <p>Daily usage on date: ${formatCurrency(dailyUsage)}</p>
+            <p>Daily remaining: ${formatCurrency(dailyRemaining)}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p><strong>Available amount: ${formatCurrency(availableAmount)}</strong></p>
+            <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-top: 8px;">
+              Daily availability: ${formatCurrency(dailyRemaining)} | Monthly availability: ${formatCurrency(monthlyRemaining)}
+            </p>
+          ` : `
+            <p><strong>Available amount: ${formatCurrency(Math.min(limits[selectedPackage].daily, limits[selectedPackage].monthly))}</strong></p>
+            <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">Full limits available (no transaction history)</p>
+          `}
         </div>
       `;
     });
@@ -825,15 +941,16 @@
       const analysisDate = new Date(dateValue);
       
       // Calculate usage for the specific date
-      const monthlyUsage = calculateRolling30DayUsage(analysisDate, selectedPackage);
+      const rollingResult = calculateRolling30DayUsage(analysisDate, selectedPackage);
       const dailyUsage = calculateDailyUsage(dateValue, selectedPackage);
       
-      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - monthlyUsage);
+      const monthlyRemaining = Math.max(0, limits[selectedPackage].monthly - rollingResult.usage);
       const dailyRemaining = Math.max(0, limits[selectedPackage].daily - dailyUsage);
       const availableAmount = Math.min(dailyRemaining, monthlyRemaining);
       
-      const rollback30Days = new Date(analysisDate);
-      rollback30Days.setDate(analysisDate.getDate() - 30);
+      const methodDescription = rollingMethod === 'earliest' 
+        ? 'From earliest transaction date' 
+        : 'Traditional 30-days back';
       
       // Get transactions for the specific date
       const dayTransactions = transactions.filter(t => 
@@ -849,18 +966,31 @@
         transactionsList += '</ul>';
       }
       
+      let noDataMessage = '';
+      if (rollingMethod === 'earliest' && !rollingResult.startDate) {
+        noDataMessage = '<p style="color: var(--text-muted); font-style: italic;">No transactions recorded for this package yet.</p>';
+      }
+      
       document.getElementById('daily-availability').innerHTML = `
         <div class="info-display fade-in">
           <p><strong>${selectedPackage} Analysis for ${formatDate(dateValue)}</strong></p>
-          <p>Rolling 30-day period: ${formatDate(rollback30Days.toISOString().split('T')[0])} to ${formatDate(dateValue)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p>Monthly usage in period: ${formatCurrency(monthlyUsage)}</p>
-          <p>Monthly remaining: ${formatCurrency(monthlyRemaining)}</p>
-          <p>Daily usage: ${formatCurrency(dailyUsage)}</p>
-          <p>Daily remaining: ${formatCurrency(dailyRemaining)}</p>
-          <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
-          <p><strong>Available amount: ${formatCurrency(availableAmount)}</strong></p>
-          ${transactionsList}
+          <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">Method: ${methodDescription}</p>
+          ${noDataMessage}
+          ${rollingResult.startDate ? `
+            <p>Rolling 30-day period: ${formatDate(rollingResult.startDate.toISOString().split('T')[0])} to ${formatDate(rollingResult.endDate.toISOString().split('T')[0])}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p>Monthly usage in period: ${formatCurrency(rollingResult.usage)}</p>
+            <p>Monthly remaining: ${formatCurrency(monthlyRemaining)}</p>
+            <p>Daily usage: ${formatCurrency(dailyUsage)}</p>
+            <p>Daily remaining: ${formatCurrency(dailyRemaining)}</p>
+            <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border-color);">
+            <p><strong>Available amount: ${formatCurrency(availableAmount)}</strong></p>
+            ${transactionsList}
+          ` : `
+            <p><strong>Available amount: ${formatCurrency(Math.min(limits[selectedPackage].daily, limits[selectedPackage].monthly))}</strong></p>
+            <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">Full limits available (no transaction history)</p>
+            ${transactionsList}
+          `}
         </div>
       `;
     });
@@ -872,6 +1002,7 @@
 
     // Initialize the application
     document.getElementById('date-format').value = dateFormat;
+    document.getElementById('rolling-method').value = rollingMethod;
     renderAll();
 
     // Set today's date as default for the transaction form
