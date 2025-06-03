@@ -321,6 +321,45 @@
       background-color: var(--background-color);
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-color);
+      white-space: pre-line; /* Preserves line breaks */
+    }
+
+    /* Link styles within notes and instructions */
+    .note a,
+    .info-display a,
+    .alert a {
+      color: var(--primary-color);
+      text-decoration: underline;
+      transition: color 0.2s ease-in-out;
+    }
+
+    .note a:hover,
+    .info-display a:hover,
+    .alert a:hover {
+      color: var(--primary-hover);
+      text-decoration: none;
+    }
+
+    .note a:focus,
+    .info-display a:focus,
+    .alert a:focus {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Enhanced instruction text styling */
+    .instruction-text {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      text-align: left;
+      margin: var(--spacing-sm) 0;
+      padding: var(--spacing-md);
+      background-color: var(--background-color);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      white-space: pre-line; /* Preserves line breaks */
+      line-height: 1.6;
     }
 
     /* Package Colors */
@@ -624,6 +663,12 @@
     // Utility Functions
     function getPackageClass(packageName) {
       return `package-${packageName.toLowerCase()}`;
+    }
+    // Utility function to process instruction text with links and line breaks
+    function processInstructionText(text) {
+      // Convert URLs to clickable links
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      return text.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
     }
 
     function formatCurrency(amount) {
@@ -1187,13 +1232,19 @@
       document.getElementById('daily-availability').innerHTML = '';
     });
 
-    // Initialize the application
-    document.getElementById('date-format').value = dateFormat;
-    renderAll();
+// Initialize the application
+document.getElementById('date-format').value = dateFormat;
 
-    // Set today's date as default for the transaction form
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('date').value = today;
+// Process instruction text for links
+document.querySelectorAll('.instruction-text').forEach(element => {
+  element.innerHTML = processInstructionText(element.textContent);
+});
+
+renderAll();
+
+// Set today's date as default for the transaction form
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('date').value = today;
   </script>
 </body>
 </html>
